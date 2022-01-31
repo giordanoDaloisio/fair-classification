@@ -3,22 +3,21 @@ from fairclass import utils as u
 
 
 class OneVsRest:
-    def __init__(self, loss, fairness_constr, acc_constr, gamma, x_control, sensitive_vars):
+    def __init__(self, loss, fairness_constr, acc_constr, gamma, sensitive_vars):
         self.loss = loss
         self.fairness_constr = fairness_constr
         self.acc_constr = acc_constr
         self.gamma = gamma
-        self.x_control = x_control
         self.sensitive_vars = sensitive_vars
         self.class_weights = []
 
-    def fit(self, x, y):
+    def fit(self, x, x_control, y):
         x = u.add_intercept(x)
         for l in np.sort(np.unique(y)):
             y_c = np.copy(y)
             y_c[y_c != l] = -1
             thresh = {s: 0 for s in self.sensitive_vars}
-            w = u.train_model(x, y_c, self.x_control, self.loss, self.fairness_constr, self.acc_constr, 0,
+            w = u.train_model(x, y_c, x_control, self.loss, self.fairness_constr, self.acc_constr, 0,
                               self.sensitive_vars, thresh, self.gamma)
             self.class_weights.append(w)
 

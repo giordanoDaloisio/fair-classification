@@ -339,12 +339,13 @@ def get_constraint_list_cov(x_train, y_train, x_control_train, sensitive_attrs, 
     return constraints
 
 
-def _train_test_split(df_train, df_test, label):
+def _train_test_split(df_train, df_test, label, sensitive_vars):
     x_train = df_train.drop(label, axis=1).values
     y_train = df_train[label].values.ravel()
+    x_control = {s: df_train[s].values for s in sensitive_vars}
     x_test = df_test.drop(label, axis=1).values
     y_test = df_test[label].values.ravel()
-    return x_train, x_test, y_train, y_test
+    return x_train, x_test, y_train, y_test, x_control
 
 
 def cross_val(classifier, data, label, groups_condition, positive_label, n_splits=10):
@@ -354,7 +355,6 @@ def cross_val(classifier, data, label, groups_condition, positive_label, n_split
         'zero_one_loss': [],
         'disp_imp': [],
         'acc': [],
-        'f1': []
     }
     for train, test in fold.split(data):
         data = data.copy()
@@ -369,11 +369,11 @@ def cross_val(classifier, data, label, groups_condition, positive_label, n_split
 
 
 def _model_train(df_train, df_test, label, classifier, metrics, groups_condition, positive_label):
-    x_train, x_test, y_train, y_test = _train_test_split(
-        df_train, df_test, label)
+    x_train, x_test, y_train, y_test, x_control = _train_test_split(
+        df_train, df_test, label, list(groups_condition.keys()))
     model = deepcopy(classifier)
-    model.fit(x_train, y_train)
-    pred = model.predict(x_test)
+    model.fit(x_train, x_control, y_train)
+    pred = model.pred(x_test)
     df_pred = df_test.copy()
     df_pred[label] = pred
     metrics['stat_par'].append(mt.statistical_parity(
@@ -382,5 +382,15 @@ def _model_train(df_train, df_test, label, classifier, metrics, groups_condition
         df_pred, groups_condition, label, positive_label=positive_label))
     metrics['zero_one_loss'].append(mt.zero_one_loss_diff(df_test, df_pred, groups_condition, label, positive_label))
     metrics['acc'].append(mt.accuracy_score(y_test, pred))
-    metrics['f1'].append(mt.f1_score(y_test, pred, average='weighted'))
     return metrics
+
+
+def print_metrics(metrics):
+    print('Statistical parity: ', round(np.mean(
+        metrics['stat_par']), 3), ' +- ', round(np.std(metrics['stat_par']), 3))
+    print('Disparate impact: ', round(np.mean(
+        metrics['disp_imp']), 3), ' +- ', round(np.std(metrics['disp_imp']), 3))
+    print('Zero one loss: ', round(np.mean(
+        metrics['zero_one_loss']), 3), ' +- ', round(np.std(metrics['zero_one_loss']), 3))
+    print('Accuracy score: ', round(np.mean(
+        metrics['acc']), 3), ' +- ', round(np.std(metrics['acc']), 3))
