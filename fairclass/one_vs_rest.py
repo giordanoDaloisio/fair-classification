@@ -3,24 +3,23 @@ from fairclass import utils as u
 
 
 class OneVsRest:
-    def __init__(self, loss, fairness_constr, acc_constr, gamma):
+    def __init__(self, loss, fairness_constr, acc_constr, gamma, x_control, sensitive_vars):
         self.loss = loss
-        self.class_weights = []
         self.fairness_constr = fairness_constr
         self.acc_constr = acc_constr
         self.gamma = gamma
+        self.x_control = x_control
+        self.sensitive_vars = sensitive_vars
+        self.class_weights = []
 
-    def train(self, df_train, label, sensitive_vars):
-        for l in df_train[label].sort_values().unique():
-            df_copy = df_train.copy()
-            df_copy.loc[df_copy[label] != l, label] = -1
-            x = df_copy.drop(label, axis=1).values
-            y = df_copy[label].values.ravel()
-            x = u.add_intercept(x)
-            x_control = {s: df_copy[s].values for s in sensitive_vars}
-            thresh = {s: 0 for s in sensitive_vars}
-            w = u.train_model(x, y, x_control, self.loss, self.fairness_constr, self.acc_constr, 0, sensitive_vars,
-                              thresh, self.gamma)
+    def fit(self, x, y):
+        x = u.add_intercept(x)
+        for l in np.sort(np.unique(y)):
+            y_c = np.copy(y)
+            y_c[y_c != l] = -1
+            thresh = {s: 0 for s in self.sensitive_vars}
+            w = u.train_model(x, y_c, self.x_control, self.loss, self.fairness_constr, self.acc_constr, 0,
+                              self.sensitive_vars, thresh, self.gamma)
             self.class_weights.append(w)
 
     def pred(self, x_test):
