@@ -14,7 +14,7 @@ if __name__ == '__main__':
     data[label] = data[label]-1
     d_train, d_test = train_test_split(data, test_size=0.3, shuffle=True)
     loss = lf._logistic_loss
-    x_control = {s: d_train[s] for s in sensitive_features}
+    x_control = {s: d_train[s].values for s in sensitive_features}
 
     # BIASED
     fairness_constr = 0
