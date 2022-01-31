@@ -18,7 +18,7 @@ class OneVsRest:
             y_c = np.copy(y)
             y_c[y_c != l] = -1
             thresh = {s: 0 for s in self.sensitive_vars}
-            w = u.train_model(x, y, self.x_control, self.loss, self.fairness_constr, self.acc_constr, 0,
+            w = u.train_model(x, y_c, self.x_control, self.loss, self.fairness_constr, self.acc_constr, 0,
                               self.sensitive_vars, thresh, self.gamma)
             self.class_weights.append(w)
 
