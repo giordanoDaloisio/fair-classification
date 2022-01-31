@@ -1,4 +1,6 @@
 from prepare_adult_data import *
+import sys
+sys.path.insert(0, '../../fairclass/')
 from fairclass import utils as ut, loss_funcs as lf  # loss funcs that can be optimized subject to various constraints
 
 
@@ -28,10 +30,13 @@ def test_adult_data():
         w = ut.train_model(x_train, y_train, x_control_train, loss_function, apply_fairness_constraints,
                            apply_accuracy_constraint, sep_constraint, sensitive_attrs, sensitive_attrs_to_cov_thresh,
                            gamma)
+        # print("Shape: ", x_test.shape)
+        # print('Scores: ', w)
         train_score, test_score, correct_answers_train, correct_answers_test = ut.check_accuracy(w, x_train, y_train,
                                                                                                  x_test, y_test, None,
                                                                                                  None)
         distances_boundary_test = (np.dot(x_test, w)).tolist()
+        print("Scores: ", distances_boundary_test)
         all_class_labels_assigned_test = np.sign(distances_boundary_test)
         correlation_dict_test = ut.get_correlations(None, None, all_class_labels_assigned_test, x_control_test,
                                                     sensitive_attrs)
