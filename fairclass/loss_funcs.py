@@ -1,12 +1,4 @@
-import sys
-import os
 import numpy as np
-from scipy.special import logsumexp
-from extmath import safe_sparse_dot, squared_norm
-from scipy import sparse
-from collections import defaultdict
-import traceback
-from copy import deepcopy
 
 
 def _hinge_loss(w, X, y):
@@ -88,50 +80,3 @@ def log_logistic(X):
     out[idx] = -np.log(1.0 + np.exp(-X[idx]))
     out[~idx] = X[~idx] - np.log(1.0 + np.exp(X[~idx]))
     return out
-
-
-def _multinomial_loss(w, X, Y, alpha, sample_weight):
-    """Computes multinomial loss and class probabilities.
-    Parameters
-    ----------
-    w : ndarray of shape (n_classes * n_features,) or
-        (n_classes * (n_features + 1),)
-        Coefficient vector.
-    X : {array-like, sparse matrix} of shape (n_samples, n_features)
-        Training data.
-    Y : ndarray of shape (n_samples, n_classes)
-        Transformed labels according to the output of LabelBinarizer.
-    alpha : float
-        Regularization parameter. alpha is equal to 1 / C.
-    sample_weight : array-like of shape (n_samples,)
-        Array of weights that are assigned to individual samples.
-    Returns
-    -------
-    loss : float
-        Multinomial loss.
-    p : ndarray of shape (n_samples, n_classes)
-        Estimated class probabilities.
-    w : ndarray of shape (n_classes, n_features)
-        Reshaped param vector excluding intercept terms.
-    Reference
-    ---------
-    Bishop, C. M. (2006). Pattern recognition and machine learning.
-    Springer. (Chapter 4.3.4)
-    """
-    n_classes = Y.shape[1]
-    n_features = X.shape[1]
-    fit_intercept = w.size == (n_classes * (n_features + 1))
-    w = w.reshape(n_classes, -1)
-    sample_weight = sample_weight[:, np.newaxis]
-    if fit_intercept:
-        intercept = w[:, -1]
-        w = w[:, :-1]
-    else:
-        intercept = 0
-    p = safe_sparse_dot(X, w.T)
-    p += intercept
-    p -= logsumexp(p, axis=1)[:, np.newaxis]
-    loss = -(sample_weight * Y * p).sum()
-    loss += 0.5 * alpha * squared_norm(w)
-    p = np.exp(p, p)
-    return loss, p, w
