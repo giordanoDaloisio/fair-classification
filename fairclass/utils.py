@@ -1,12 +1,12 @@
 from collections import defaultdict
 from copy import deepcopy
-from multiprocessing import Process, Queue
-from random import seed, shuffle
+from random import seed
 
 import numpy as np
 from scipy.optimize import minimize  # for loss func minimization
 from sklearn.model_selection import KFold
-from sklearn.preprocessing import LabelBinarizer
+from sklearn.preprocessing import LabelBinarizer, StandardScaler
+
 import metrics as mt
 
 SEED = 1122334455
@@ -340,11 +340,14 @@ def get_constraint_list_cov(x_train, y_train, x_control_train, sensitive_attrs, 
 
 
 def _train_test_split(df_train, df_test, label, sensitive_vars):
+    sc = StandardScaler()
     x_train = df_train.drop(label, axis=1).values
     y_train = df_train[label].values.ravel()
     x_control = {s: df_train[s].values for s in sensitive_vars}
     x_test = df_test.drop(label, axis=1).values
     y_test = df_test[label].values.ravel()
+    x_train = sc.fit_transform(x_train)
+    x_test = sc.fit_transform(x_test)
     return x_train, x_test, y_train, y_test, x_control
 
 
