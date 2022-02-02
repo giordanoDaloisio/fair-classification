@@ -9,4 +9,4 @@ if __name__ == '__main__':
     sensitive_variables = ['GENDER', 'RELIGION']
     positive_label = 3
     loss = lf._logistic_loss
-    tu.test(data, label, sensitive_variables, protected_group, loss, 'trump_bias.csv', 'trump_fair.csv')
+    tu.test(data, label, sensitive_variables, protected_group, loss, 'trump_bias.csv', 'trump_fair.csv', positive_label)

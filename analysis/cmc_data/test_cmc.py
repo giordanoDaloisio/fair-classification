@@ -13,5 +13,6 @@ if __name__ == '__main__':
     unpriv_group = {'wife_religion': 1, 'wife_work': 1}
     data[label] = data[label]-1
     loss = lf._logistic_loss
+    positive_label = 1
 
-    tu.test(data, label, sensitive_features, unpriv_group, loss, 'cmc_bias.csv', 'cmc_fair.csv')
+    tu.test(data, label, sensitive_features, unpriv_group, loss, 'cmc_bias.csv', 'cmc_fair.csv', positive_label)

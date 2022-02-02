@@ -90,7 +90,7 @@ We can see that the classifier sacrificed some accuracy to achieve similar fract
 The figure shows the original decision boundary (without any constraints) and the shifted decision boundary that was learnt by the fair classifier. Notice how the boundary shifts to push more non-protected points to the negative class (and vice-versa).
 
 
-###1.4. Optimizing fairness subject to accuracy constraints
+### 1.4. Optimizing fairness subject to accuracy constraints
 
 Now lets try to **optimize fairness** (that does not necessarily correspond to a 100% p-rule) **subject to a deterministic loss in accuracy**. The details can be found in Section 3.3 of our [paper](http://arxiv.org/pdf/1507.05259.pdf).
 
@@ -172,7 +172,7 @@ We also provide a demo of our code on [Adult dataset](http://archive.ics.uci.edu
 
 ```shell
 $ cd adult_data
-$ python demo_constraints.py
+$ python adult_test.py
 ```
 
 ## 2. Using the code

@@ -9,4 +9,5 @@ if __name__ == '__main__':
     protected_group = {'alcohol': 0, 'type': 1}
     positive_label = 2
     loss = lf._logistic_loss
-    tu.test(data, label, sensitive_variables, protected_group, loss, 'law_bias.csv', 'law_fair.csv')
+    tu.test(data, label, sensitive_variables, protected_group,
+            loss, 'wine_bias.csv', 'wine_fair.csv', positive_label)
