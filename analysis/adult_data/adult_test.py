@@ -9,4 +9,5 @@ if __name__ == '__main__':
     unpriv_group = {'sex': 0, 'race': 0}
     positive_label = 1
     loss = lf._logistic_loss
-    tu.test(data, label, sensitive_features, unpriv_group, loss, 'adult_bias.csv', 'adult_fair.csv')
+    tu.test_binary(data, label, sensitive_features, unpriv_group, loss, 'adult_bias.csv', 'adult_fair.csv',
+                   positive_label)

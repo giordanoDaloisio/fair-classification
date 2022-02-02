@@ -8,7 +8,7 @@ def load_dataset():
     column_names = ['age', 'workclass', 'fnlwgt', 'education', 'education-num', 'marital-status',
                     'occupation', 'relationship', 'race', 'sex', 'capital-gain', 'capital-loss',
                     'hours-per-week', 'native-country', 'income']
-    adult_df = pd.read_csv('data/adult.data', names=column_names)
+    adult_df = pd.read_csv('adult.data', names=column_names)
     adult_df.drop(adult_df[(adult_df['race'] != ' Black') & (
             adult_df['race'] != ' White')].index, inplace=True)
     adult_df.loc[adult_df['native-country'] ==
