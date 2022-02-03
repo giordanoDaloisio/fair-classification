@@ -16,6 +16,7 @@ class OneVsRest:
         for l in np.sort(np.unique(y)):
             y_c = np.copy(y)
             y_c[y_c != l] = -1
+            y_c[y_c == l] = 1
             thresh = {s: 0 for s in self.sensitive_vars}
             w = u.train_model(x, y_c, x_control, self.loss, self.fairness_constr, self.acc_constr, 0,
                               self.sensitive_vars, thresh, self.gamma)

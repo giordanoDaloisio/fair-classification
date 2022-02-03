@@ -30,7 +30,7 @@ def test(data, label, sensitive_features, groups_condition, loss, bias_df_name, 
     ut.print_metrics(metrics)
 
 
-def test_binary(data, label, sensitive_features, groups_condition, loss, bias_df_name, fair_df_name, positive_label,
+def test_binary(data, label, sensitive_features, groups_condition, bias_df_name, fair_df_name, positive_label,
                 gamma=0.5):
     print '####### BIASED CLASSIFIER'
     fairness_constr = 0

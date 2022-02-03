@@ -42,7 +42,8 @@ def load_dataset():
         adult_df['age_class'])).drop('age_class', axis=1)
     adult_df = adult_df.join(pd.get_dummies(
         adult_df['hour-per-week-class'])).drop('hour-per-week-class', axis=1)
-    adult_df['income'] = lab_enc.fit_transform(adult_df['income'])
+    # adult_df['income'] = lab_enc.fit_transform(adult_df['income'])
+    adult_df['income'].replace({' <=50K': -1, ' >50K': 1}, inplace=True)
     adult_df[['sex', 'race']] = ord_enc.fit_transform(
         adult_df[['sex', 'race']])
     return adult_df

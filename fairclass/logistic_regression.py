@@ -22,7 +22,8 @@ class LogisticRegression:
     def pred(self, x):
         x = ut.add_intercept(x)
         scores = np.dot(x, self.weights)
-        ris = []
-        for s in scores:
-            ris += [1] if s > 0.5 else [0]
+        # ris = []
+        # for s in scores:
+        #     ris += [1] if s > 0.5 else [0]
+        ris = np.sign(scores)
         return ris
