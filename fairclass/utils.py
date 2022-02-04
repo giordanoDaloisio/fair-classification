@@ -1,3 +1,8 @@
+import numpy as np
+from random import seed, shuffle
+import loss_funcs as lf  # our implementation of loss funcs
+from scipy.optimize import minimize  # for loss func minimization
+from multiprocessing import Pool, Process, Queue
 from collections import defaultdict
 from copy import deepcopy
 from random import seed
@@ -7,6 +12,8 @@ from scipy.optimize import minimize  # for loss func minimization
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import LabelBinarizer, StandardScaler
 
+import matplotlib.pyplot as plt  # for plotting stuff
+import sys
 import metrics as mt
 
 SEED = 1122334455
@@ -15,7 +22,7 @@ np.random.seed(SEED)
 
 
 def train_model(x, y, x_control, loss_function, apply_fairness_constraints, apply_accuracy_constraint, sep_constraint,
-                sensitive_attrs, sensitive_attrs_to_cov_thresh, gamma=None, alpha=None):
+                sensitive_attrs, sensitive_attrs_to_cov_thresh, gamma=None):
     """
 
     Function that trains the model subject to various fairness constraints.
@@ -61,27 +68,21 @@ def train_model(x, y, x_control, loss_function, apply_fairness_constraints, appl
 
     if apply_accuracy_constraint == 0:  # its not the reverse problem, just train w with cross cov constraints
 
-        if alpha:
-            f_args = (x, LabelBinarizer().fit_transform(y), alpha, np.ones(x.shape[0]))
-        else:
-            f_args = (x, y)
+        f_args = (x, y)
         w = minimize(fun=loss_function,
                      x0=np.random.rand(x.shape[1], ),
                      args=f_args,
                      method='SLSQP',
                      options={"maxiter": max_iter},
-                     constraints=constraints)
+                     constraints=constraints
+                     )
 
     else:
 
-        if alpha:
-            f_args = (x, LabelBinarizer().fit_transform(y), alpha, np.ones(x.shape[0]))
-        else:
-            f_args = (x, y)
         # train on just the loss function
         w = minimize(fun=loss_function,
                      x0=np.random.rand(x.shape[1], ),
-                     args=f_args,
+                     args=(x, y),
                      method='SLSQP',
                      options={"maxiter": max_iter},
                      constraints=[]
@@ -109,14 +110,12 @@ def train_model(x, y, x_control, loss_function, apply_fairness_constraints, appl
         predicted_labels = np.sign(np.dot(w.x, x.T))
         unconstrained_loss_arr = loss_function(w.x, x, y, return_arr=True)
 
-        if sep_constraint:  # separate gemma for different people
+        if sep_constraint == True:  # separate gemma for different people
             for i in range(0, len(predicted_labels)):
                 if predicted_labels[i] == 1.0 and x_control[sensitive_attrs[0]][
-                    i] == 1.0:  # for now we are assuming just one sensitive attr for reverse constraint, later,
-                    # extend the code to take into account multiple sensitive attrs
+                    i] == 1.0:  # for now we are assuming just one sensitive attr for reverse constraint, later, extend the code to take into account multiple sensitive attrs
                     c = ({'type': 'ineq', 'fun': constraint_protected_people, 'args': (x[i], y[
-                        i])})  # this constraint makes sure that these people stay in the positive class even in the
-                    # modified classifier
+                        i])})  # this constraint makes sure that these people stay in the positive class even in the modified classifier
                     constraints.append(c)
                 else:
                     c = ({'type': 'ineq', 'fun': constraint_unprotected_people,
@@ -146,6 +145,139 @@ def train_model(x, y, x_control, loss_function, apply_fairness_constraints, appl
         print w
 
     return w.x
+
+
+def compute_cross_validation_error(x_all, y_all, x_control_all, num_folds, loss_function, apply_fairness_constraints,
+                                   apply_accuracy_constraint, sep_constraint, sensitive_attrs,
+                                   sensitive_attrs_to_cov_thresh_arr, gamma=None):
+    """
+    Computes the cross validation error for the classifier subject to various fairness constraints
+    This function is just a wrapper of "train_model(...)", all inputs (except for num_folds) are the same. See the specifications of train_model(...) for more info.
+
+    Returns lists of train/test accuracy (with each list holding values for all folds), the fractions of various sensitive groups in positive class (for train and test sets), and covariance between sensitive feature and distance from decision boundary (again, for both train and test folds).
+    """
+
+    train_folds = []
+    test_folds = []
+    n_samples = len(y_all)
+    train_fold_size = 0.7  # the rest of 0.3 is for testing
+
+    # split the data into folds for cross-validation
+    for i in range(0, num_folds):
+        perm = range(0, n_samples)  # shuffle the data before creating each fold
+        shuffle(perm)
+        x_all_perm = x_all[perm]
+        y_all_perm = y_all[perm]
+        x_control_all_perm = {}
+        for k in x_control_all.keys():
+            x_control_all_perm[k] = np.array(x_control_all[k])[perm]
+
+        x_all_train, y_all_train, x_control_all_train, x_all_test, y_all_test, x_control_all_test = split_into_train_test(
+            x_all_perm, y_all_perm, x_control_all_perm, train_fold_size)
+
+        train_folds.append([x_all_train, y_all_train, x_control_all_train])
+        test_folds.append([x_all_test, y_all_test, x_control_all_test])
+
+    def train_test_single_fold(train_data, test_data, fold_num, output_folds, sensitive_attrs_to_cov_thresh):
+
+        x_train, y_train, x_control_train = train_data
+        x_test, y_test, x_control_test = test_data
+
+        w = train_model(x_train, y_train, x_control_train, loss_function, apply_fairness_constraints,
+                        apply_accuracy_constraint, sep_constraint, sensitive_attrs, sensitive_attrs_to_cov_thresh,
+                        gamma)
+        train_score, test_score, correct_answers_train, correct_answers_test = check_accuracy(w, x_train, y_train,
+                                                                                              x_test, y_test, None,
+                                                                                              None)
+
+        distances_boundary_test = (np.dot(x_test, w)).tolist()
+        all_class_labels_assigned_test = np.sign(distances_boundary_test)
+        correlation_dict_test = get_correlations(None, None, all_class_labels_assigned_test, x_control_test,
+                                                 sensitive_attrs)
+        cov_dict_test = print_covariance_sensitive_attrs(None, x_test, distances_boundary_test, x_control_test,
+                                                         sensitive_attrs)
+
+        distances_boundary_train = (np.dot(x_train, w)).tolist()
+        all_class_labels_assigned_train = np.sign(distances_boundary_train)
+        correlation_dict_train = get_correlations(None, None, all_class_labels_assigned_train, x_control_train,
+                                                  sensitive_attrs)
+        cov_dict_train = print_covariance_sensitive_attrs(None, x_train, distances_boundary_train, x_control_train,
+                                                          sensitive_attrs)
+
+        output_folds.put(
+            [fold_num, test_score, train_score, correlation_dict_test, correlation_dict_train, cov_dict_test,
+             cov_dict_train])
+
+        return
+
+    output_folds = Queue()
+    processes = [Process(target=train_test_single_fold,
+                         args=(train_folds[x], test_folds[x], x, output_folds, sensitive_attrs_to_cov_thresh_arr[x]))
+                 for x in range(num_folds)]
+
+    # Run processes
+    for p in processes:
+        p.start()
+
+    # Get the reuslts
+    results = [output_folds.get() for p in processes]
+    for p in processes:
+        p.join()
+
+    test_acc_arr = []
+    train_acc_arr = []
+    correlation_dict_test_arr = []
+    correlation_dict_train_arr = []
+    cov_dict_test_arr = []
+    cov_dict_train_arr = []
+
+    results = sorted(results, key=lambda x: x[0])  # sort w.r.t fold num
+    for res in results:
+        fold_num, test_score, train_score, correlation_dict_test, correlation_dict_train, cov_dict_test, cov_dict_train = res
+
+        test_acc_arr.append(test_score)
+        train_acc_arr.append(train_score)
+        correlation_dict_test_arr.append(correlation_dict_test)
+        correlation_dict_train_arr.append(correlation_dict_train)
+        cov_dict_test_arr.append(cov_dict_test)
+        cov_dict_train_arr.append(cov_dict_train)
+
+    return test_acc_arr, train_acc_arr, correlation_dict_test_arr, correlation_dict_train_arr, cov_dict_test_arr, cov_dict_train_arr
+
+
+def print_classifier_fairness_stats(acc_arr, correlation_dict_arr, cov_dict_arr, s_attr_name):
+    correlation_dict = get_avg_correlation_dict(correlation_dict_arr)
+    non_prot_pos = correlation_dict[s_attr_name][1][1]
+    prot_pos = correlation_dict[s_attr_name][0][1]
+    p_rule = (prot_pos / non_prot_pos) * 100.0
+
+    print "Accuracy: %0.2f" % (np.mean(acc_arr))
+    print "Protected/non-protected in +ve class: %0.0f%% / %0.0f%%" % (prot_pos, non_prot_pos)
+    print "P-rule achieved: %0.0f%%" % (p_rule)
+    print "Covariance between sensitive feature and decision from distance boundary : %0.3f" % (
+        np.mean([v[s_attr_name] for v in cov_dict_arr]))
+    print
+    return p_rule
+
+
+def compute_p_rule(x_control, class_labels):
+    """ Compute the p-rule based on Doctrine of disparate impact """
+
+    non_prot_all = sum(x_control == 1.0)  # non-protected group
+    prot_all = sum(x_control == 0.0)  # protected group
+    non_prot_pos = sum(class_labels[x_control == 1.0] == 1.0)  # non_protected in positive class
+    prot_pos = sum(class_labels[x_control == 0.0] == 1.0)  # protected in positive class
+    frac_non_prot_pos = float(non_prot_pos) / float(non_prot_all)
+    frac_prot_pos = float(prot_pos) / float(prot_all)
+    p_rule = (frac_prot_pos / frac_non_prot_pos) * 100.0
+    print
+    print "Total data points: %d" % (len(x_control))
+    print "# non-protected examples: %d" % (non_prot_all)
+    print "# protected examples: %d" % (prot_all)
+    print "Non-protected in positive class: %d (%0.0f%%)" % (non_prot_pos, non_prot_pos * 100.0 / non_prot_all)
+    print "Protected in positive class: %d (%0.0f%%)" % (prot_pos, prot_pos * 100.0 / prot_all)
+    print "P-rule is: %0.0f%%" % (p_rule)
+    return p_rule
 
 
 def add_intercept(x):
@@ -260,6 +392,46 @@ def test_sensitive_attr_constraint_cov(model, x_arr, y_arr_dist_boundary, x_cont
         print "Diff is:", ans
         print
     return ans
+
+
+def print_covariance_sensitive_attrs(model, x_arr, y_arr_dist_boundary, x_control, sensitive_attrs):
+    """
+    reutrns the covariance between sensitive features and distance from decision boundary
+    """
+
+    arr = []
+    if model is None:
+        arr = y_arr_dist_boundary  # simplt the output labels
+    else:
+        arr = np.dot(model, x_arr.T)  # the product with the weight vector -- the sign of this is the output label
+
+    sensitive_attrs_to_cov_original = {}
+    for attr in sensitive_attrs:
+
+        attr_arr = x_control[attr]
+
+        bin_attr = check_binary(attr_arr)  # check if the attribute is binary (0/1), or has more than 2 vals
+        if bin_attr == False:  # if its a non-binary sensitive feature, then perform one-hot-encoding
+            attr_arr_transformed, index_dict = get_one_hot_encoding(attr_arr)
+
+        thresh = 0
+
+        if bin_attr:
+            cov = thresh - test_sensitive_attr_constraint_cov(None, x_arr, arr, np.array(attr_arr), thresh, False)
+            sensitive_attrs_to_cov_original[attr] = cov
+        else:  # sensitive feature has more than 2 categorical values
+
+            cov_arr = []
+            sensitive_attrs_to_cov_original[attr] = {}
+            for attr_val, ind in index_dict.items():
+                t = attr_arr_transformed[:, ind]
+                cov = thresh - test_sensitive_attr_constraint_cov(None, x_arr, arr, t, thresh, False)
+                sensitive_attrs_to_cov_original[attr][attr_val] = cov
+                cov_arr.append(abs(cov))
+
+            cov = max(cov_arr)
+
+    return sensitive_attrs_to_cov_original
 
 
 def get_correlations(model, x_test, y_predicted, x_control_test, sensitive_attrs):
