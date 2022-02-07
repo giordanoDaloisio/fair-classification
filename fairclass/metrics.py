@@ -3,7 +3,7 @@ from sklearn.metrics import accuracy_score, f1_score, zero_one_loss
 
 
 def disparate_impact(data_pred, group_condition, label_name, positive_label):
-    unpriv_group_prob, priv_group_prob = _compute_probs(data_pred, label_name, positive_label, group_condition, )
+    unpriv_group_prob, priv_group_prob = _compute_probs(data_pred, label_name, positive_label, group_condition)
     return min(unpriv_group_prob / priv_group_prob,
                priv_group_prob / unpriv_group_prob) if unpriv_group_prob != 0 else \
         unpriv_group_prob / priv_group_prob
